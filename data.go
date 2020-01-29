@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
@@ -11,7 +12,7 @@ import (
 )
 
 // addData adds the given data to the given id in FDB and returns any generated errors.
-func (state State) addData(id int64, data byte) error {
+func (state State) addData(id int64, data int64) error {
 	_, err := state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		mutable, err := state.getData(tr, id)
 		if err != nil {
@@ -82,27 +83,38 @@ func (state State) clearDirty(tr fdb.Transaction, id int64) {
 }
 
 // dataHammer repeatedly writes to the given id.
-func (state State) dataHammer(id int64, interval time.Duration) {
-	bytes := make([]byte, 1)
+func (state State) dataHammer(id int64, interval time.Duration, wg *sync.WaitGroup, stopChan chan struct{}, countChan chan Count) {
+	defer wg.Done()
+
+	count := make(map[int64]uint64)
+
+	defer func() {
+		countChan <- Count{id: id, count: count}
+	}()
 
 	ticker := time.NewTicker(interval)
 
 	for {
-		<-ticker.C
-		_, err := rand.Read(bytes)
-		if err != nil {
-			log.Error().Err(err).Str("component", "hammer").Int64("id", id).Msg("failed to generate random bytes")
-			return
-		}
+		select {
+		case <-ticker.C:
+			data := int64(rand.Uint32() % 10)
 
-		_, err = state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-			state.addData(id, bytes[0])
+			_, err := state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+				state.addData(id, data)
 
-			return nil, nil
-		})
-		if err != nil {
-			log.Error().Err(err).Int64("id", id).Str("component", "hammer").Msg("failed to add data")
-			return
+				return nil, nil
+			})
+			if err != nil {
+				log.Error().Err(err).Int64("id", id).Str("component", "hammer").Msg("failed to add data")
+				return
+			}
+
+			count[data] += 1
+
+		case _, open := <-stopChan:
+			if !open {
+				return
+			}
 		}
 	}
 }

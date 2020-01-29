@@ -11,10 +11,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var pollTime = 500 * time.Millisecond
-
-func (state State) runWriter() {
-	ticker := time.NewTicker(pollTime)
+func (state State) runWriter(interval time.Duration) {
+	ticker := time.NewTicker(interval)
 
 	for {
 		select {
@@ -30,7 +28,7 @@ func (state State) runWriter() {
 					continue
 				}
 
-				log.Debug().Str("component", "writer").Int64("id", id).Msg("wrote dirty data")
+				//log.Debug().Str("component", "writer").Int64("id", id).Msg("wrote dirty data")
 			}
 		}
 	}
@@ -113,8 +111,7 @@ func (state State) writeDirtyID(id int64) error {
 	clearData := true
 
 	if !data.IDWritten {
-		_, err := state.sql.insertID.Exec(id)
-		if err != nil {
+		if _, err := state.sql.insertID.Exec(id); err != nil {
 			gotoErr = errors.Wrap(err, "failed to insert id")
 			goto exit
 		}
@@ -123,8 +120,7 @@ func (state State) writeDirtyID(id int64) error {
 	}
 
 	if len(data.Data) > 0 {
-		_, err := state.sql.insertData.Exec(id, pq.Array(data.Data))
-		if err != nil {
+		if _, err := state.sql.insertData.Exec(id, pq.Array(data.Data)); err != nil {
 			gotoErr = errors.Wrap(err, "failed to write errors to Postgres")
 			goto exit
 		}
@@ -163,7 +159,7 @@ func (state State) recordDirtyDataDiff(id int64, dirtyData *MutableData) error {
 		cleanData.IDWritten = dirtyData.IDWritten
 
 		for _, element := range data.Data {
-			if dirtyData.containsByte(element) {
+			if dirtyData.containsInt(element) {
 				continue
 			}
 

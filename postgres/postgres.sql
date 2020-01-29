@@ -1,6 +1,6 @@
 CREATE TABLE data (
 	id BIGINT PRIMARY KEY,
-	data BYTEA[]
+	ints BIGINT[]
 );
 
 CREATE TABLE id (

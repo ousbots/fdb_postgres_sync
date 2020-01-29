@@ -12,8 +12,10 @@ const (
 	idTableName   = "id"
 	dataTableName = "data"
 
-	insertIDSQL   = "INSERT INTO " + idTableName + " VALUES ($1) ON CONFLICT DO NOTHING"
-	insertDataSQL = "UPDATE " + dataTableName + " SET data = data || $2 WHERE id = $1"
+	getDataSQL    = "SELECT * FROM " + dataTableName + " WHERE id = $1"
+	insertDataSQL = "INSERT INTO " + dataTableName + " VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET ints = EXCLUDED.ints || $2"
+	//insertDataSQL = "UPDATE " + dataTableName + " SET ints = ints || $2 WHERE id = $1"
+	insertIDSQL = "INSERT INTO " + idTableName + " VALUES ($1) ON CONFLICT DO NOTHING"
 )
 
 type fdbState struct {
@@ -24,8 +26,9 @@ type fdbState struct {
 
 type sqlState struct {
 	db         *sql.DB
-	insertID   *sql.Stmt
+	getData    *sql.Stmt
 	insertData *sql.Stmt
+	insertID   *sql.Stmt
 }
 
 type State struct {
@@ -33,7 +36,8 @@ type State struct {
 	sql sqlState
 }
 
-func newState() *State {
+// newState prepares / opens all databases and returns a State struct.
+func newState() State {
 	var state State
 	var err error
 
@@ -57,11 +61,11 @@ func newState() *State {
 	}
 	state.sql.db = sqldb
 
-	stmt, err := sqldb.Prepare(insertIDSQL)
+	stmt, err := sqldb.Prepare(getDataSQL)
 	if err != nil {
 		panic(err)
 	}
-	state.sql.insertID = stmt
+	state.sql.getData = stmt
 
 	stmt, err = sqldb.Prepare(insertDataSQL)
 	if err != nil {
@@ -69,5 +73,11 @@ func newState() *State {
 	}
 	state.sql.insertData = stmt
 
-	return &state
+	stmt, err = sqldb.Prepare(insertIDSQL)
+	if err != nil {
+		panic(err)
+	}
+	state.sql.insertID = stmt
+
+	return state
 }
