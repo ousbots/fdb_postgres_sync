@@ -8,6 +8,7 @@ import (
 	"github.com/apple/foundationdb/bindings/go/src/fdb/tuple"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 var pollTime = 500 * time.Millisecond
@@ -20,16 +21,16 @@ func (state State) runWriter() {
 		case <-ticker.C:
 			ids, err := state.getDirtyIDs()
 			if err != nil {
-				fmt.Printf("failed to get dirty IDs to write\n")
+				log.Error().Err(err).Str("component", "writer").Msg("failed to get dirty IDs")
 			}
 
 			for _, id := range ids {
 				if err := state.writeDirtyID(id); err != nil {
-					fmt.Printf("failed to write dirty record %d\n", id)
+					log.Error().Err(err).Str("component", "writer").Int64("id", id).Msg("failed to write dirty data")
 					continue
 				}
 
-				fmt.Printf("wrote dirty record %d\n", id)
+				log.Debug().Str("component", "writer").Int64("id", id).Msg("wrote dirty data")
 			}
 		}
 	}
@@ -93,7 +94,7 @@ func (state State) getDirtyIDs() ([]int64, error) {
 // writeDirtyID moves the data of the given id from FDB to Postgres and return any generated
 // errors.
 func (state State) writeDirtyID(id int64) error {
-	var data *Mutable
+	var data *MutableData
 	var gotoErr error
 
 	_, err := state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
@@ -139,13 +140,13 @@ exit:
 	err = state.recordDirtyDataDiff(id, data)
 	if err != nil {
 		return fmt.Errorf("multiple errors: %s, %s", gotoErr,
-			errors.Wrap(err, "failed to record the dirty record difference"))
+			errors.Wrap(err, "failed to record the diff of dirty data"))
 	}
 
 	return gotoErr
 }
 
-func (state State) recordDirtyDataDiff(id int64, dirtyData *Mutable) error {
+func (state State) recordDirtyDataDiff(id int64, dirtyData *MutableData) error {
 	if dirtyData == nil {
 		return nil
 	}
@@ -158,7 +159,7 @@ func (state State) recordDirtyDataDiff(id int64, dirtyData *Mutable) error {
 			return nil, err
 		}
 
-		var cleanData Mutable
+		var cleanData MutableData
 		cleanData.IDWritten = dirtyData.IDWritten
 
 		for _, element := range data.Data {

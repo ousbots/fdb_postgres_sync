@@ -2,11 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/apple/foundationdb/bindings/go/src/fdb/tuple"
+	"github.com/rs/zerolog/log"
 )
 
 // addData adds the given data to the given id in FDB and returns any generated errors.
@@ -18,7 +19,7 @@ func (state State) addData(id int64, data byte) error {
 		}
 
 		if mutable == nil {
-			mutable = &Mutable{
+			mutable = &MutableData{
 				ID: id,
 			}
 		}
@@ -35,7 +36,7 @@ func (state State) addData(id int64, data byte) error {
 }
 
 // getData returns the data found in FDB for the given id and any generated errors.
-func (state State) getData(tr fdb.Transaction, id int64) (*Mutable, error) {
+func (state State) getData(tr fdb.Transaction, id int64) (*MutableData, error) {
 	key := state.fdb.dataDir.Pack(tuple.Tuple{id})
 	bytes := tr.Get(key).MustGet()
 
@@ -43,7 +44,7 @@ func (state State) getData(tr fdb.Transaction, id int64) (*Mutable, error) {
 		return nil, nil
 	}
 
-	var mutable Mutable
+	var mutable MutableData
 	if err := json.Unmarshal(bytes, &mutable); err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func (state State) getData(tr fdb.Transaction, id int64) (*Mutable, error) {
 }
 
 // setData writes the given data to the given id in FDB
-func (state State) setData(tr fdb.Transaction, id int64, data *Mutable) error {
+func (state State) setData(tr fdb.Transaction, id int64, data *MutableData) error {
 	if data == nil {
 		return nil
 	}
@@ -81,13 +82,16 @@ func (state State) clearDirty(tr fdb.Transaction, id int64) {
 }
 
 // dataHammer repeatedly writes to the given id.
-func (state State) dataHammer(id int64) {
+func (state State) dataHammer(id int64, interval time.Duration) {
 	bytes := make([]byte, 1)
 
+	ticker := time.NewTicker(interval)
+
 	for {
+		<-ticker.C
 		_, err := rand.Read(bytes)
 		if err != nil {
-			fmt.Printf("id %d hammer just died: %s", id, err)
+			log.Error().Err(err).Str("component", "hammer").Int64("id", id).Msg("failed to generate random bytes")
 			return
 		}
 
@@ -97,7 +101,7 @@ func (state State) dataHammer(id int64) {
 			return nil, nil
 		})
 		if err != nil {
-			fmt.Printf("id %d hammer just died: %s", id, err)
+			log.Error().Err(err).Int64("id", id).Str("component", "hammer").Msg("failed to add data")
 			return
 		}
 	}
