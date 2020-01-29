@@ -10,14 +10,36 @@ type MutableData struct {
 	IDWritten bool
 }
 
-// containsByte returns true if the given MutableData struct contains the given int64, otherwise
-// it returns false.
+// containsInt returns true if the given MutableData struct contains the given int64,
+// otherwise false.
 func (self MutableData) containsInt(element int64) bool {
-	for index, _ := range self.Data {
-		if self.Data[index] != element {
-			return false
+	for _, existing := range self.Data {
+		if existing == element {
+			return true
 		}
 	}
 
-	return true
+	return false
+}
+
+func (self MutableData) deepCopy() *MutableData {
+	var copied MutableData
+	copied.ID = self.ID
+	copied.Data = make([]int64, len(self.Data))
+	copy(copied.Data, self.Data)
+	copied.IDWritten = self.IDWritten
+
+	return &copied
+}
+
+// deleteFirstElement delete the first occurence of the given element in self.Data
+func (self *MutableData) deleteFirstElement(element int64) {
+	var index int
+
+	for index, _ = range self.Data {
+		if self.Data[index] == element {
+			self.Data = append(self.Data[:index], self.Data[index+1:]...)
+			return
+		}
+	}
 }

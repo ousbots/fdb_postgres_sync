@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"math/rand"
+	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/apple/foundationdb/bindings/go/src/fdb/directory"
@@ -9,13 +11,12 @@ import (
 )
 
 const (
-	idTableName   = "id"
 	dataTableName = "data"
 
-	getDataSQL    = "SELECT * FROM " + dataTableName + " WHERE id = $1"
-	insertDataSQL = "INSERT INTO " + dataTableName + " VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET ints = EXCLUDED.ints || $2"
-	//insertDataSQL = "UPDATE " + dataTableName + " SET ints = ints || $2 WHERE id = $1"
-	insertIDSQL = "INSERT INTO " + idTableName + " VALUES ($1) ON CONFLICT DO NOTHING"
+	getDataSQL = "SELECT * FROM " + dataTableName + " WHERE id = $1"
+	//insertDataSQL = "INSERT INTO " + dataTableName + " VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET ints = EXCLUDED.ints || $2"
+	insertDataSQL = "UPDATE " + dataTableName + " SET ints = ints || $2 WHERE id = $1"
+	insertIDSQL   = "INSERT INTO " + dataTableName + " VALUES ($1, array[]::BIGINT[])"
 )
 
 type fdbState struct {
@@ -32,14 +33,17 @@ type sqlState struct {
 }
 
 type State struct {
-	fdb fdbState
-	sql sqlState
+	fdb  fdbState
+	sql  sqlState
+	rand *rand.Rand
 }
 
 // newState prepares / opens all databases and returns a State struct.
 func newState() State {
 	var state State
 	var err error
+
+	state.rand = rand.New(rand.NewSource(time.Now().Unix()))
 
 	fdb.MustAPIVersion(620)
 	state.fdb.db = fdb.MustOpenDefault()

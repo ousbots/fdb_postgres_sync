@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -97,7 +96,7 @@ func (state State) dataHammer(id int64, interval time.Duration, wg *sync.WaitGro
 	for {
 		select {
 		case <-ticker.C:
-			data := int64(rand.Uint32() % 10)
+			data := int64(state.rand.Uint32() % 10)
 
 			_, err := state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 				state.addData(id, data)

@@ -13,10 +13,10 @@ type Count struct {
 	count map[int64]uint64
 }
 
-const RUNTIME = 1 * time.Second
+const RUNTIME = 4 * time.Second
 const HAMMER_INTERVAL = 100 * time.Millisecond
-const WRITER_INTERVAL = 500 * time.Millisecond
-const NUMBER_OF_HAMMERS = 10
+const WRITER_INTERVAL = 1000 * time.Millisecond
+const NUMBER_OF_HAMMERS = 1
 
 func main() {
 	state := newState()
@@ -67,7 +67,7 @@ countLoop:
 
 		if len(count.count) != len(pgCount) {
 			log.Error().Int64("id", count.id).Msg("data sizes do not match")
-			log.Error().Msgf("writer count: %d, pg count: %d", len(count.count), len(pgCount))
+			log.Error().Msgf("writer: %+v, pg: %+v", count.count, pgCount)
 			continue countLoop
 		}
 

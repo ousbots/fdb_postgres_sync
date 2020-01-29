@@ -27,8 +27,6 @@ func (state State) runWriter(interval time.Duration) {
 					log.Error().Err(err).Str("component", "writer").Int64("id", id).Msg("failed to write dirty data")
 					continue
 				}
-
-				//log.Debug().Str("component", "writer").Int64("id", id).Msg("wrote dirty data")
 			}
 		}
 	}
@@ -108,7 +106,7 @@ func (state State) writeDirtyID(id int64) error {
 	}
 
 	// Record the parts of the data to Postgres and clear them from FDB
-	clearData := true
+	wroteData := false
 
 	if !data.IDWritten {
 		if _, err := state.sql.insertID.Exec(id); err != nil {
@@ -125,11 +123,11 @@ func (state State) writeDirtyID(id int64) error {
 			goto exit
 		}
 
-		clearData = false
+		wroteData = true
 	}
 
 exit:
-	if clearData {
+	if !wroteData {
 		data.Data = nil
 	}
 
@@ -142,24 +140,28 @@ exit:
 	return gotoErr
 }
 
-func (state State) recordDirtyDataDiff(id int64, dirtyData *MutableData) error {
-	if dirtyData == nil {
+func (state State) recordDirtyDataDiff(id int64, dirty *MutableData) error {
+	if dirty == nil {
 		return nil
 	}
 
 	// Go through the record in FDB and the dirty record and keep any elements that are in the FDB
 	// record but not in the dirty record.
 	_, err := state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		data, err := state.getData(tr, id)
+		dirtyData := dirty.deepCopy()
+
+		fdbData, err := state.getData(tr, id)
 		if err != nil {
 			return nil, err
 		}
 
 		var cleanData MutableData
 		cleanData.IDWritten = dirtyData.IDWritten
+		cleanData.ID = dirtyData.ID
 
-		for _, element := range data.Data {
+		for _, element := range fdbData.Data {
 			if dirtyData.containsInt(element) {
+				dirtyData.deleteFirstElement(element)
 				continue
 			}
 

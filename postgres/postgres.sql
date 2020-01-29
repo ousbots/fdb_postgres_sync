@@ -2,7 +2,3 @@ CREATE TABLE data (
 	id BIGINT PRIMARY KEY,
 	ints BIGINT[]
 );
-
-CREATE TABLE id (
-	id BIGINT PRIMARY KEY
-);
