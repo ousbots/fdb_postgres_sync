@@ -1,16 +1,18 @@
 # FDB -> Postgres synchronization
 This is a prototype of synchronizing data between FDB and postgres.  The codebase includes a full test / demo setup.
 
-The synchronization happens with the following flow:  
+
+The synchronization happens via the following high-level flow:
+
 Data input:  
-* When new data is input, old data is read, the new data is appended, the new data is written, then the data is marked as "dirty" (single FDB transaction)
+* (single FDB transaction) Read the old data, append the new data, then write the combined data, then mark the data as “dirty”
 
 Synchronization:  
-* Range read the "dirty" ids, skipping any that are marked "writing" and mark the unmarked ids as "writing" (single FDB transaction)
-* For each "dirty" id:
-	* Read the data (single FDB transaction)
+* (single FDB transaction) Range read the “dirty” ids, discarding any ids marked “write” and marking the remaining ids as “write”
+* For each “dirty” id:
+	* (single FDB transaction) Read the data
 	* Write the data to postgres
-	* Read the data from FDB again (new data), then write the difference between the new data and the dirty data to FDB ("clean" data), then if the "clean" data is empty, remove the "dirty" mark from the id, and finally remove the "writing" mark (single FDB transaction)
+	* (single FDB transaction) Read the data from FDB again (new data), then write the difference between the new data and the dirty data to FDB (“clean” data), then if the “clean” data is empty, remove the “dirty” mark from the id, and finally remove the “writing” mark
 
 Marking an id means writing the id as an FDB key to an FDB directory (e.g. "dirty", "writing") and clearing means removing that id key from the FDB directory.  This enables range-reading for id marks.
 
