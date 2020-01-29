@@ -1,0 +1,8 @@
+CREATE TABLE data (
+	id BIGINT PRIMARY KEY,
+	data BYTEA[]
+);
+
+CREATE TABLE id (
+	id BIGINT PRIMARY KEY
+);
