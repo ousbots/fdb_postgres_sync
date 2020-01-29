@@ -69,16 +69,40 @@ func (state State) setData(tr fdb.Transaction, id int64, data *MutableData) erro
 	return nil
 }
 
-// setDirtyRecord marks the given lookupID as needing to be written to Postgres.
+// setDirty marks the given id as needing to be written to Postgres.
 func (state State) setDirty(tr fdb.Transaction, id int64) {
 	dirtyKey := state.fdb.dirtyDir.Pack(tuple.Tuple{id})
 	tr.Set(dirtyKey, nil)
 }
 
-// clearDirtyRecord marks the given lookupID as having been written to Postgres.
+// clearDirty marks the given id as having been written to Postgres.
 func (state State) clearDirty(tr fdb.Transaction, id int64) {
 	dirtyKey := state.fdb.dirtyDir.Pack(tuple.Tuple{id})
 	tr.Clear(dirtyKey)
+}
+
+// setWrite marks the given id as being synchronized.
+func (state State) setWrite(tr fdb.Transaction, id int64) {
+	writeKey := state.fdb.writeDir.Pack(tuple.Tuple{id})
+	tr.Set(writeKey, nil)
+}
+
+// clearWrite marks the given id as not being synchronized.
+func (state State) clearWrite(tr fdb.Transaction, id int64) {
+	writeKey := state.fdb.writeDir.Pack(tuple.Tuple{id})
+	tr.Clear(writeKey)
+}
+
+// getWrite returns true if the given id is marked as being synchronized, otherwise false.
+func (state State) getWrite(tr fdb.Transaction, id int64) bool {
+	writeKey := state.fdb.writeDir.Pack(tuple.Tuple{id})
+	data := tr.Get(writeKey).MustGet()
+
+	if data != nil {
+		return true
+	}
+
+	return false
 }
 
 // dataHammer repeatedly writes to the given id.

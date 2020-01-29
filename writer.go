@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
-	"github.com/apple/foundationdb/bindings/go/src/fdb/tuple"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -34,8 +33,10 @@ func (state State) runWriter(interval time.Duration) {
 
 // getDirtyIDs returns a list of all ids that are marked as dirty or any errors generated.
 func (state State) getDirtyIDs() ([]int64, error) {
-	data, err := state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		var tuples []tuple.Tuple
+	var dirtyIDs []int64
+
+	_, err := state.fdb.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		dirtyIDs = nil
 
 		iter := tr.GetRange(state.fdb.dirtyDir, fdb.RangeOptions{}).Iterator()
 
@@ -47,41 +48,29 @@ func (state State) getDirtyIDs() ([]int64, error) {
 				return nil, err
 			}
 
-			tuples = append(tuples, tup)
+			if len(tup) != 1 {
+				return nil, errors.New("incorrect tuple size")
+			}
+
+			var id int64
+			switch tup[0].(type) {
+			case int64:
+				id = tup[0].(int64)
+
+			default:
+				return nil, fmt.Errorf("tuple lookupID is %T not an int64", tup[0])
+			}
+
+			if !state.getWrite(tr, id) {
+				state.setWrite(tr, id)
+				dirtyIDs = append(dirtyIDs, id)
+			}
 		}
 
-		return tuples, nil
+		return nil, nil
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get lookupIDs of dirty records")
-	}
-
-	var tuples []tuple.Tuple
-	switch data.(type) {
-	case []tuple.Tuple:
-		tuples = data.([]tuple.Tuple)
-
-	default:
-		return nil, fmt.Errorf("data is not a []tuple.Tuple")
-	}
-
-	var dirtyIDs []int64
-
-	for _, tup := range tuples {
-		if len(tup) != 1 {
-			return nil, errors.New("incorrect tuple size")
-		}
-
-		var id int64
-		switch tup[0].(type) {
-		case int64:
-			id = tup[0].(int64)
-
-		default:
-			return nil, fmt.Errorf("tuple lookupID is %T not an int64", tup[0])
-		}
-
-		dirtyIDs = append(dirtyIDs, id)
 	}
 
 	return dirtyIDs, nil
@@ -173,6 +162,7 @@ func (state State) recordDirtyDataDiff(id int64, dirty *MutableData) error {
 		}
 
 		state.setData(tr, id, &cleanData)
+		state.clearWrite(tr, id)
 
 		return nil, nil
 	})

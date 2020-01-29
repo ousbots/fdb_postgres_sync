@@ -21,6 +21,7 @@ const NUMBER_OF_HAMMERS = 1
 func main() {
 	state := newState()
 	go state.runWriter(WRITER_INTERVAL)
+	go state.runWriter(WRITER_INTERVAL)
 
 	countChan := make(chan Count, NUMBER_OF_HAMMERS)
 	stopChan := make(chan struct{})

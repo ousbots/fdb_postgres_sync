@@ -16,13 +16,15 @@ const (
 	getDataSQL = "SELECT * FROM " + dataTableName + " WHERE id = $1"
 	//insertDataSQL = "INSERT INTO " + dataTableName + " VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET ints = EXCLUDED.ints || $2"
 	insertDataSQL = "UPDATE " + dataTableName + " SET ints = ints || $2 WHERE id = $1"
-	insertIDSQL   = "INSERT INTO " + dataTableName + " VALUES ($1, array[]::BIGINT[])"
+	//insertIDSQL   = "INSERT INTO " + dataTableName + " VALUES ($1, array[]::BIGINT[]) ON CONFLICT DO NOTHING"
+	insertIDSQL = "INSERT INTO " + dataTableName + " VALUES ($1, array[]::BIGINT[])"
 )
 
 type fdbState struct {
 	db       fdb.Database
 	dataDir  directory.DirectorySubspace
 	dirtyDir directory.DirectorySubspace
+	writeDir directory.DirectorySubspace
 }
 
 type sqlState struct {
@@ -54,6 +56,11 @@ func newState() State {
 	}
 
 	state.fdb.dirtyDir, err = directory.CreateOrOpen(state.fdb.db, []string{"dirty"}, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	state.fdb.writeDir, err = directory.CreateOrOpen(state.fdb.db, []string{"write"}, nil)
 	if err != nil {
 		panic(err)
 	}
